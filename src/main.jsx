@@ -9,6 +9,9 @@ import runnerCutout from './assets/runner-cutout.png';
 import { supabase } from './lib/supabase';
 import { AuthProvider, useAuth } from './lib/auth';
 import { useArticles, useArticle, fetchArticles, saveArticle, deleteArticle, uploadArticleImage, slugify } from './lib/articles';
+import { LogsProvider, useLogs, todayStr, shiftDay, DAILY_GLASS_TARGET, MOOD_OPTIONS } from './lib/logs';
+import { useMealPlan, DAYS, MEAL_TIMES } from './lib/mealPlan';
+import { useMotivations, saveMotivation, deleteMotivation, MOTIVATION_COLORS } from './lib/motivations';
 
 const navItems = [
   ['/home', Home], ['/news', Newspaper], ['/mental', Brain], ['/ai', Sparkles], ['/nutrition', Utensils]
@@ -37,6 +40,7 @@ function Shell(){
     <Route path="/home" element={<HomePage/>}/><Route path="/news" element={<NewsPage/>}/><Route path="/mental" element={<MentalPage/>}/>
     <Route path="/ai" element={<AIPage/>}/><Route path="/nutrition" element={<NutritionPage/>}/><Route path="/profile" element={<ProfilePage/>}/><Route path="/article/:slug" element={<ArticleDetailPage/>}/>
     <Route path="/admin" element={<AdminArticlesPage/>}/>
+    <Route path="/admin/motivasi" element={<AdminMotivationPage/>}/>
     <Route path="/journal" element={<JournalPage/>}/><Route path="/mood" element={<MoodPage/>}/><Route path="/motivation" element={<MotivationPage/>}/><Route path="/drawing" element={<DrawingPage/>}/>
     <Route path="*" element={<Navigate to="/home" replace/>}/>
   </Routes></div></main></div>;
@@ -75,7 +79,7 @@ function Reveal({children,className=''}){const ref=useRef(null);useEffect(()=>{c
 function Page({children,title}){const particleCount=22;return <div className="content"><div className="page-particles" aria-hidden="true">{Array.from({length:particleCount},(_,i)=><span key={i} className={'abstract-particle p-'+(i+1)}/>)}</div>{title&&<Reveal><h1 className="page-title">{title}</h1></Reveal>}{children}</div>}
 function Chips({items=['Semua','Gizi','Tidur','Olahraga','Mental'], value, onChange}){const [internal,setInternal]=useState(items[0]);const selected=value??internal;const choose=x=>{setInternal(x);onChange?.(x)};return <div className="chips">{items.map(x=><button key={x} className={selected===x?'selected':''} onClick={()=>choose(x)}>{x}</button>)}</div>}
 
-function HomePage(){const {articles,loading}=useArticles();const [category,setCategory]=useState('Semua');const intro=sessionStorage.getItem('valitudo-login-transition')==='1';useEffect(()=>{if(intro){sessionStorage.removeItem('valitudo-login-transition')}},[intro]);const filtered=category==='Semua'?articles:articles.filter(a=>a.category===category);return <Page><div className={'home-page '+(intro?'home-intro':'')}><Reveal><div className="home-banner"><img src={homeBanner} alt="Life good. Be healthy."/><div className="runner-stage" aria-hidden="true"><img src={runnerCutout} alt=""/></div></div></Reveal><div className="home-layout"><Reveal className="today-reveal"><aside className="today"><div className="today-head"><h2>Hari ini</h2><span className="today-date">Rabu, 11 Nov</span></div><div className="today-stats"><Stat value="1.566" label="kkal dikonsumsi"/><Stat value="6 gelas" label="air minum"/><Stat value="Tenang" label="suasana hati"/></div><div className="today-balance"><div className="today-balance-head"><span>Daily balance</span><b>Good</b></div><div className="balance-row"><span>Nutrition</span><i><em style={{width:'82%'}}/></i></div><div className="balance-row"><span>Hydration</span><i><em style={{width:'70%'}}/></i></div><div className="balance-row"><span>Mood</span><i><em style={{width:'88%'}}/></i></div></div><div className="today-focus"><span>Today focus</span><div><b>01</b><p>Drink one more glass of water before lunch.</p></div><div><b>02</b><p>Take a short walk and give your eyes a break.</p></div><div><b>03</b><p>Keep tonight calm and make room for good sleep.</p></div></div><div className="today-streak"><div><span>Weekly streak</span><strong>4 days</strong></div><div className="streak-dots"><i/><i/><i/><i/><i/><i/><i/></div></div><div className="today-note"><span>Small step</span><p>Keep your routine simple today. Consistency matters more than perfection.</p></div></aside></Reveal><section className="home-articles"><Reveal><h2>Artikel pilihan</h2></Reveal><Reveal><Chips value={category} onChange={setCategory}/></Reveal><div className="article-grid">{filtered.map(a=><Reveal key={a.slug} className="article-reveal"><ArticleCard data={a}/></Reveal>)}</div>{loading?<div className="empty-state">Memuat artikel...</div>:filtered.length===0&&<div className="empty-state">Belum ada artikel untuk kategori ini.</div>}</section></div><Footer/></div></Page>}
+function HomePage(){const {articles,loading}=useArticles();const {summary:s}=useLogs();const [category,setCategory]=useState('Semua');const intro=sessionStorage.getItem('valitudo-login-transition')==='1';useEffect(()=>{if(intro){sessionStorage.removeItem('valitudo-login-transition')}},[intro]);const filtered=category==='Semua'?articles:articles.filter(a=>a.category===category);const today=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'short'});return <Page><div className={'home-page '+(intro?'home-intro':'')}><Reveal><div className="home-banner"><img src={homeBanner} alt="Life good. Be healthy."/><div className="runner-stage" aria-hidden="true"><img src={runnerCutout} alt=""/></div></div></Reveal><div className="home-layout"><Reveal className="today-reveal"><aside className="today"><div className="today-head"><h2>Hari ini</h2><span className="today-date">{today}</span></div><div className="today-stats"><Stat value={s.kcal} label="kkal dikonsumsi"/><Stat value={`${s.glasses} gelas`} label="air minum"/><Stat value={s.mood||'Belum diisi'} label="suasana hati"/></div><div className="today-balance"><div className="today-balance-head"><span>Daily balance</span><b style={s.balance==='Belum ada'?{opacity:.5}:undefined}>{s.balance}</b></div><div className="balance-row"><span>Nutrition</span><i><em style={{width:s.nutritionPct+'%'}}/></i></div><div className="balance-row"><span>Hydration</span><i><em style={{width:s.hydrationPct+'%'}}/></i></div><div className="balance-row"><span>Mood</span><i><em style={{width:s.moodPct+'%'}}/></i></div></div><div className="today-streak"><div><span>Weekly streak</span><strong>{s.streak} days</strong></div><div className="streak-dots">{Array.from({length:7},(_,i)=><i key={i} style={{background:i<s.streak?'#3d6b45':'#d5ddd3'}}/>)}</div></div></aside></Reveal><section className="home-articles"><Reveal><h2>Artikel pilihan</h2></Reveal><Reveal><Chips value={category} onChange={setCategory}/></Reveal><div className="article-grid">{filtered.map(a=><Reveal key={a.slug} className="article-reveal"><ArticleCard data={a}/></Reveal>)}</div>{loading?<div className="empty-state">Memuat artikel...</div>:filtered.length===0&&<div className="empty-state">Belum ada artikel untuk kategori ini.</div>}</section></div><Footer/></div></Page>}
 function Stat({value,label}){const match=String(value).match(/^(\d[\d.]*)/);const target=match?Number(match[1].replaceAll('.','')):null;const suffix=match?String(value).slice(match[1].length):'';const [count,setCount]=useState(target?0:null);useEffect(()=>{if(target===null)return;let start=0;let raf;const duration=2100;const t0=performance.now();const tick=now=>{const progress=Math.min((now-t0)/duration,1);const eased=1-Math.pow(1-progress,3);setCount(Math.floor(target*eased));if(progress<1)raf=requestAnimationFrame(tick)};raf=requestAnimationFrame(tick);return()=>cancelAnimationFrame(raf)},[target]);return <div className="stat"><strong>{target!==null?`${(count??0).toLocaleString('id-ID')}${suffix}`:value}</strong><span>{label}</span></div>}
 function ArticleCard({data}){const nav=useNavigate();return <button className="article-card" onClick={()=>nav('/article/'+data.slug)}><img className="article-image" src={data.image} alt={data.title}/><div className="article-copy"><div className="article-category">{data.category}</div><h3>{data.title}</h3><p>{data.excerpt}</p><span>{data.date}</span></div></button>}
 
@@ -84,7 +88,81 @@ function ArticleDetailPage(){const {slug}=useParams();const {article,loading}=us
 function NewsPage(){const {articles,loading}=useArticles();const [search,setSearch]=useState('');const [category,setCategory]=useState('Semua');const filtered=articles.filter(a=>(category==='Semua'||a.category===category)&&(a.title+' '+a.category).toLowerCase().includes(search.toLowerCase()));return <Page title="Berita kesehatan"><Reveal><div className="news-tools"><div className="search"><Search/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari artikel..."/></div><Chips value={category} onChange={setCategory}/></div></Reveal><div className="article-grid news-grid">{filtered.map(a=><Reveal key={a.slug}><ArticleCard data={a}/></Reveal>)}</div>{loading?<div className="empty-state">Memuat artikel...</div>:filtered.length===0&&<div className="empty-state">Artikel tidak ditemukan.</div>}<Footer/></Page>}
 
 function MentalPage(){const nav=useNavigate();const [mood,setMood]=useState(0);const moods=['😊','😌','😴','😎','🥰','🤔','😄'];useEffect(()=>{const t=setInterval(()=>setMood(v=>(v+1)%moods.length),420);return()=>clearInterval(t)},[]);const cards=[['Journaling','Tuliskan apa yang kamu rasakan hari ini.','Mulai menulis','/journal','green',BookOpen,'book','Ruang tenang untuk menuangkan isi pikiran.'],['Mood Tracker','Catat dan pantau mood kamu.','Catat mood','/mood','peach',Smile,'mood','Pilih suasana hati dan lihat polanya dari waktu ke waktu.'],['Motivation Word','Temukan kata-kata kecil yang menguatkan.','Buka kata','/motivation','cyan',Sparkles,'motivation','Satu kalimat sederhana untuk menemani langkahmu hari ini.'],['Drawing','Gambar bebas untuk melepas penat.','Mulai menggambar','/drawing','lavender',PenTool,'pencil','Coret, warna, dan lepaskan pikiran tanpa aturan.']];return <Page title="Solusi kesehatan mental"><Reveal><div className="mental-intro"><span>RUANG UNTUK DIRI SENDIRI</span><h2>Rawat pikiranmu, satu langkah kecil setiap hari.</h2><p>Pilih aktivitas yang paling sesuai dengan kebutuhanmu saat ini.</p></div></Reveal><div className="mental-grid">{cards.map(([t,d,b,p,c,I,kind,detail],i)=><Reveal key={t}><button className={'mental-card '+c} onClick={()=>nav(p)}><div className="mental-card-top"><span className={'mental-object '+kind}>{kind==='mood'?<span className="mood-face">{moods[mood]}</span>:<I/>}</span><span>0{i+1}</span></div><div className="mental-card-copy"><h3>{t}</h3><p>{d}</p><small>{detail}</small></div><span className="mental-card-action">{b}<span>→</span></span></button></Reveal>)}</div><Footer/></Page>}
-function NutritionPage(){const [day,setDay]=useState('Senin');const [meals,setMeals]=useState([]);const [form,setForm]=useState({name:'',time:'Sarapan',note:''});const addMeal=()=>{if(!form.name.trim())return;setMeals(m=>[...m,{...form,id:Date.now(),day}]);setForm({name:'',time:'Sarapan',note:''})};const dayMeals=meals.filter(m=>m.day===day);return <Page title="Rencana makan mingguan"><div className="nutrition-planner"><div className="planner-top"><div><span className="eyebrow">PERENCANAAN</span><h2>Rencana makan mingguan</h2><p>Mulai dari kosong, lalu tambahkan menu sesuai kebutuhanmu.</p></div><div className="planner-count"><strong>{meals.length}</strong><span>menu tersimpan</span></div></div><div className="day-tabs">{['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'].map(d=><button className={day===d?'active':''} onClick={()=>setDay(d)} key={d}>{d}</button>)}</div><div className="planner-body"><section className="meal-empty">{dayMeals.length===0?<><div className="empty-icon"><Utensils/></div><h3>Belum ada menu untuk {day}</h3><p>Tambahkan sarapan, makan siang, makan malam, atau camilan untuk mengisi rencana hari ini.</p></>:<div className="meal-list">{dayMeals.map(m=><div className="planned-meal" key={m.id}><div><span>{m.time}</span><h3>{m.name}</h3>{m.note&&<p>{m.note}</p>}</div><button onClick={()=>setMeals(x=>x.filter(v=>v.id!==m.id))}><Trash2/></button></div>)}</div>}</section><aside className="add-meal-card"><span className="eyebrow">TAMBAH MENU</span><h3>Isi rencana makan</h3><label>Nama menu<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Contoh: Oatmeal pisang"/></label><label>Waktu<select value={form.time} onChange={e=>setForm({...form,time:e.target.value})}><option>Sarapan</option><option>Makan siang</option><option>Makan malam</option><option>Camilan</option></select></label><label>Catatan <span>(opsional)</span><input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Porsi atau catatan"/></label><button className="add-meal-btn" onClick={addMeal}>+ Tambahkan menu</button></aside></div></div><Footer/></Page>}
+function NutritionPage(){
+  const {items,loading,addItem,updateItem,removeItem}=useMealPlan();
+  const [day,setDay]=useState('Senin');
+  const blank=d=>({name:'',time:'Sarapan',note:'',day:d});
+  const [form,setForm]=useState(blank('Senin'));
+  const [editingId,setEditingId]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState('');
+
+  const dayItems=items
+    .filter(m=>m.day_name===day)
+    .sort((a,b)=>MEAL_TIMES.indexOf(a.meal_time)-MEAL_TIMES.indexOf(b.meal_time)||new Date(a.created_at)-new Date(b.created_at));
+
+  const chooseDay=d=>{setDay(d);setEditingId(null);setForm(blank(d));setMsg('')};
+  const resetForm=()=>{setForm(blank(day));setEditingId(null);setMsg('')};
+  const startEdit=m=>{setEditingId(m.id);setForm({name:m.name,time:m.meal_time,note:m.note??'',day:m.day_name});setMsg('')};
+
+  const submit=async()=>{
+    if(!form.name.trim()){setMsg('Isi nama menu dulu.');return}
+    setBusy(true);setMsg('');
+    try{
+      if(editingId){await updateItem(editingId,form);setMsg('Menu diperbarui.')}
+      else{await addItem(form);setMsg('Menu ditambahkan.')}
+      setEditingId(null);setForm(blank(day));
+    }catch(e){setMsg(e.message)}
+    finally{setBusy(false)}
+  };
+
+  const remove=async m=>{
+    if(!window.confirm(`Hapus "${m.name}"?`))return;
+    setBusy(true);setMsg('');
+    try{
+      await removeItem(m.id);
+      if(editingId===m.id)resetForm();
+    }catch(e){setMsg(e.message)}
+    finally{setBusy(false)}
+  };
+
+  return <Page title="Rencana makan mingguan"><TodayLog/>
+    <div className="nutrition-planner">
+      <div className="planner-top">
+        <div><span className="eyebrow">PERENCANAAN</span><h2>Rencana makan mingguan</h2><p>Mulai dari kosong, lalu tambahkan menu sesuai kebutuhanmu.</p></div>
+        <div className="planner-count"><strong>{items.length}</strong><span>menu tersimpan</span></div>
+      </div>
+      <div className="day-tabs">{DAYS.map(d=><button className={day===d?'active':''} onClick={()=>chooseDay(d)} key={d}>{d}</button>)}</div>
+      <div className="planner-body">
+        <section className="meal-empty">
+          {loading?<p>Memuat rencana...</p>:dayItems.length===0?<>
+            <div className="empty-icon"><Utensils/></div>
+            <h3>Belum ada menu untuk {day}</h3>
+            <p>Tambahkan sarapan, makan siang, makan malam, atau camilan untuk mengisi rencana hari ini.</p>
+          </>:<div className="meal-list">{dayItems.map(m=><div className="planned-meal" key={m.id} style={editingId===m.id?{outline:'2px solid #2d5a36'}:undefined}>
+            <div><span>{m.meal_time}</span><h3>{m.name}</h3>{m.note&&<p>{m.note}</p>}</div>
+            <div className="admin-item-actions">
+              <button className="plain-btn" onClick={()=>startEdit(m)} disabled={busy}>Edit</button>
+              <button onClick={()=>remove(m)} disabled={busy} aria-label="Hapus menu"><Trash2/></button>
+            </div>
+          </div>)}</div>}
+        </section>
+        <aside className="add-meal-card">
+          <span className="eyebrow">{editingId?'EDIT MENU':'TAMBAH MENU'}</span>
+          <h3>{editingId?'Ubah rencana makan':'Isi rencana makan'}</h3>
+          <label>Nama menu<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Contoh: Oatmeal pisang"/></label>
+          <label>Hari<select value={form.day} onChange={e=>setForm({...form,day:e.target.value})}>{DAYS.map(d=><option key={d}>{d}</option>)}</select></label>
+          <label>Waktu<select value={form.time} onChange={e=>setForm({...form,time:e.target.value})}>{MEAL_TIMES.map(t=><option key={t}>{t}</option>)}</select></label>
+          <label>Catatan <span>(opsional)</span><input value={form.note} onChange={e=>setForm({...form,note:e.target.value})} placeholder="Porsi atau catatan"/></label>
+          <button className="add-meal-btn" onClick={submit} disabled={busy}>{busy?'Menyimpan...':editingId?'Simpan perubahan':'+ Tambahkan menu'}</button>
+          {editingId&&<button className="plain-btn" onClick={resetForm} disabled={busy}>Batal edit</button>}
+          {msg&&<p className="admin-msg">{msg}</p>}
+        </aside>
+      </div>
+    </div>
+    <Footer/>
+  </Page>;
+}
 function AIPage(){const [input,setInput]=useState('');const [messages,setMessages]=useState([]);const [typing,setTyping]=useState(false);const send=()=>{if(!input.trim()||typing)return;const q=input.trim();setInput('');setMessages(m=>[...m,{from:'user',text:q,id:Date.now()}]);setTyping(true);window.setTimeout(()=>{setMessages(m=>[...m,{from:'bot',text:'Aku akan membantu memberikan informasi kesehatan umum berdasarkan pertanyaanmu.',id:Date.now()+1}]);setTyping(false)},1250)};return <Page><div className="ipad-chat"><div className="ipad-frame"><div className="ipad-camera"/><div className="wa-topbar"><div className="chat-avatar"><img src={logo} alt="Valitudo"/></div><div><strong>Valitudo Assistant</strong><span>online</span></div><div className="wa-actions"><Search/><span>•••</span></div></div><div className="wa-chat-wall"><div className="chat-body">{messages.length===0&&!typing?<div className="chat-welcome"><div className="welcome-icon"><Sparkles/></div><h2>How can I help you today?</h2><p>Ask about nutrition, sleep, exercise, or healthy daily habits.</p></div>:<div className="chat-messages">{messages.map((m,i)=><div key={m.id} className={'chat-bubble '+m.from}>{m.text}<small>{i%2===0?'10:24':'10:25'} ✓✓</small></div>)}{typing&&<div className="typing-bubble"><i/><i/><i/></div>}</div>}</div><div className="chat-input"><button className="plus-btn">+</button><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Message"/><button onClick={send} aria-label="Kirim"><Send/></button></div><small className="chat-disclaimer">Valitudo provides general health information, not a medical diagnosis.</small></div></div></div><Footer/></Page>}
 
 function Auth({type}){
@@ -118,9 +196,74 @@ function Field({label,value,onChange,type='text'}){return <div className="field"
 function ProfilePage(){const nav=useNavigate();const {user,signOut}=useAuth();const [name,setName]=useState(user?.user_metadata?.full_name||'');const [saved,setSaved]=useState(false);const logout=async()=>{await signOut();nav('/login',{replace:true})};const save=async()=>{const {error}=await supabase.auth.updateUser({data:{full_name:name}});if(!error)setSaved(true)};return <Page title="Profil saya"><div className="profile-page"><div className="profile-hero"><div className="profile-avatar">{(name||'?').charAt(0).toUpperCase()}</div><div><span className="eyebrow">AKUN VALITUDO</span><h2>{name||'Pengguna'}</h2><p>Kelola informasi akun dan preferensimu.</p></div></div><div className="profile-form"><div className="profile-section-title"><div><h3>Informasi pribadi</h3><p>Perbarui data yang digunakan di akunmu.</p></div></div><Field label="Nama pengguna" value={name} onChange={v=>{setName(v);setSaved(false)}}/><Field label="Email" value={user?.email||''} onChange={()=>{}}/><Field label="Tanggal lahir" value="01/01/2000" onChange={()=>{}}/><div className="profile-actions"><button className="save-btn" onClick={save}><Save/>{saved?'Tersimpan':'Simpan perubahan'}</button><button className="plain-btn" onClick={logout}><LogOut/> Keluar</button></div></div></div><Footer/></Page>}
 
 function JournalPage(){const [title,setTitle]=useState('Hari yang tenang');const [text,setText]=useState('');const [entries,setEntries]=useState(['Hari yang tenang','Bersyukur','Cakap tiap pagi','Rencana esok hari']);return <Page title="Journaling"><div className="journal-layout"><aside className="journal-list">{entries.map((e,i)=><button key={e} className={i===0?'selected':''}><b>{e}</b><span>Catatan kecil tentang hari ini...</span></button>)}</aside><section className="journal-paper"><h2>{title}</h2><div className="paper-lines"><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Tulis apa yang kamu rasakan hari ini..."/></div><div className="journal-actions"><button className="save-btn" onClick={()=>{if(text.trim()){setEntries([title,...entries]);setText('')}}}>Simpan</button><button className="plain-btn" onClick={()=>setText('')}>Batal</button></div></section></div><Footer/></Page>}
-function MoodPage(){const moods=[['😊','Senang'],['😢','Sedih'],['😞','Kecewa'],['🙏','Bersyukur'],['😡','Marah']];const [selected,setSelected]=useState(3);return <Page title="Mood Tracker"><p className="subhead">Catat dan pantau mood kamu. Pilih yang paling menggambarkan harimu.</p><div className="mood-grid">{moods.map(([e,t],i)=><button className={selected===i?'selected':''} onClick={()=>setSelected(i)} key={t}><span>{e}</span><b>{t}</b></button>)}</div><div className="mood-note">Coba isi mood hari ini secara jujur. Mengenali perasaan adalah langkah baik untuk menjaga kesehatan mental.</div><h2 className="section-title">Minggu ini</h2><div className="week-grid">{['Sen','Sel','Rab','Kam','Jum','Sab','Min'].map((d,i)=><div key={d}><small>{d}</small><span>{moods[i%5][0]}</span></div>)}</div><Footer/></Page>}
-function MotivationPage(){const cards=[['🌸','Perlahan, tidak harus sempurna. Kamu tetap layak dicintai.','green'],['🌻','Hari baru, kesempatan baru untuk bertumbuh.','orange'],['🌷','Istirahat juga bagian dari perjalanan.','cyan'],['🌺','Kamu sudah melakukan yang terbaik hari ini.','pink'],['🪻','Tarik napas. Satu langkah kecil tetap berarti.','lavender'],['🌼','Kamu tidak harus berjalan sendirian.','yellow']];return <Page title="Motivation Word"><p className="subhead">Kata-kata kecil untuk menemani harimu.</p><div className="motivation-grid">{cards.map(([e,t,c])=><div className={'motivation-card '+c} key={t}><span>{e}</span><p>{t}</p></div>)}</div><Footer/></Page>}
+function MoodPage(){const {rows,summary,addLog}=useLogs();const [selected,setSelected]=useState(null);const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('');const days=Array.from({length:7},(_,i)=>shiftDay(todayStr(),i-6));const moodOn=d=>rows.filter(r=>r.kind==='mood'&&r.log_date===d).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0]?.label;const save=async()=>{if(!selected)return;setBusy(true);setMsg('');try{await addLog({kind:'mood',label:selected});setSelected(null);setMsg('Mood tersimpan.')}catch(e){setMsg(e.message)}finally{setBusy(false)}};return <Page title="Mood Tracker"><p className="subhead">Catat dan pantau mood kamu. Pilih yang paling menggambarkan harimu.</p><div className="mood-grid">{MOOD_OPTIONS.map(([e,t])=><button className={selected===t?'selected':''} onClick={()=>setSelected(t)} key={t}><span>{e}</span><b>{t}</b></button>)}</div><div className="journal-actions"><button className="save-btn" onClick={save} disabled={!selected||busy}>{busy?'Menyimpan...':'Simpan mood'}</button>{msg&&<span className="admin-msg">{msg}</span>}</div><div className="mood-note">Mood hari ini: <b>{summary.mood||'belum diisi'}</b></div><h2 className="section-title">7 hari terakhir</h2><div className="week-grid">{days.map(d=>{const m=moodOn(d);const emoji=MOOD_OPTIONS.find(([,t])=>t===m)?.[0]??'–';return <div key={d}><small>{new Date(d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'})}</small><span>{emoji}</span></div>})}</div><Footer/></Page>}
+function TodayLog(){const {rows,summary,addLog,removeLog}=useLogs();const [name,setName]=useState('');const [kcal,setKcal]=useState('');const [time,setTime]=useState('Sarapan');const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('');const today=todayStr();const meals=rows.filter(r=>r.kind==='meal'&&r.log_date===today).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));const water=rows.filter(r=>r.kind==='water'&&r.log_date===today).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));const run=async fn=>{setBusy(true);setMsg('');try{await fn()}catch(e){setMsg(e.message)}finally{setBusy(false)}};const addMeal=()=>{if(!name.trim()||!kcal){setMsg('Isi nama makanan dan jumlah kkal.');return}run(async()=>{await addLog({kind:'meal',label:`${time}: ${name.trim()}`,kcal:Number(kcal)});setName('');setKcal('')})};const addWater=()=>run(()=>addLog({kind:'water'}));const undoWater=()=>{if(water[0])run(()=>removeLog(water[0].id))};const deleteMeal=m=>run(()=>removeLog(m.id));return <div className="nutrition-planner today-log"><div className="planner-top"><div><span className="eyebrow">HARI INI</span><h2>Catat konsumsi</h2></div><div className="planner-count"><strong>{summary.kcal.toLocaleString('id-ID')}</strong><span>kkal hari ini</span></div></div><div className="planner-body"><section className="meal-empty"><h3>Air minum: {summary.glasses} / {DAILY_GLASS_TARGET} gelas</h3><div className="journal-actions"><button className="plain-btn" onClick={undoWater} disabled={busy||!water.length}>− Kurangi</button><button className="save-btn" onClick={addWater} disabled={busy}>+ Tambah gelas</button></div>{meals.length===0?<p>Belum ada makanan yang dicatat hari ini.</p>:<div className="meal-list">{meals.map(m=><div className="planned-meal" key={m.id}><div><span>{m.kcal} kkal</span><h3>{m.label}</h3></div><button onClick={()=>deleteMeal(m)} disabled={busy}><Trash2/></button></div>)}</div>}</section><aside className="add-meal-card"><span className="eyebrow">TAMBAH MAKANAN</span><h3>Catat makanan</h3><label>Nama makanan<input value={name} onChange={e=>setName(e.target.value)} placeholder="Contoh: Nasi goreng"/></label><label>Kalori (kkal)<input type="number" min="0" value={kcal} onChange={e=>setKcal(e.target.value)} placeholder="Contoh: 450"/></label><label>Waktu<select value={time} onChange={e=>setTime(e.target.value)}><option>Sarapan</option><option>Makan siang</option><option>Makan malam</option><option>Camilan</option></select></label><button className="add-meal-btn" onClick={addMeal} disabled={busy}>+ Catat makanan</button>{msg&&<p className="admin-msg">{msg}</p>}</aside></div></div>}
+function MotivationPage(){const {items,loading}=useMotivations();return <Page title="Motivation Word"><p className="subhead">Kata-kata kecil untuk menemani harimu.</p><div className="motivation-grid">{items.map(m=><div className={'motivation-card '+m.color} key={m.id}><span>{m.emoji}</span><p>{m.message}</p></div>)}</div>{loading?<div className="empty-state">Memuat...</div>:items.length===0&&<div className="empty-state">Belum ada kata motivasi.</div>}<Footer/></Page>}
 function DrawingPage(){const canvasRef=useRef(null);const [color,setColor]=useState('#8dbd50');const drawing=useRef(false);useEffect(()=>{const c=canvasRef.current,ctx=c.getContext('2d');ctx.lineCap='round';ctx.lineWidth=4;const pos=e=>{const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*(c.width/r.width),y:(e.clientY-r.top)*(c.height/r.height)}};const down=e=>{drawing.current=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};const move=e=>{if(!drawing.current)return;const p=pos(e);ctx.strokeStyle=color;ctx.lineTo(p.x,p.y);ctx.stroke()};const up=()=>drawing.current=false;c.addEventListener('pointerdown',down);c.addEventListener('pointermove',move);window.addEventListener('pointerup',up);return()=>{c.removeEventListener('pointerdown',down);c.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up)}},[color]);return <Page title="Drawing"><div className="drawing-head"><div className="color-dots">{['#8dbd50','#e2bd42','#e58b9b','#76b7bd','#8e7cc3'].map(c=><button key={c} style={{background:c}} className={color===c?'chosen':''} onClick={()=>setColor(c)}/>)}</div><button className="plain-btn" onClick={()=>canvasRef.current.getContext('2d').clearRect(0,0,canvasRef.current.width,canvasRef.current.height)}><Trash2/> Hapus</button></div><canvas ref={canvasRef} width="1080" height="530" className="drawing-canvas"/><Footer/></Page>}
+
+function AdminTabs(){const nav=useNavigate(),loc=useLocation();return <div className="chips" style={{marginBottom:16}}><button className={loc.pathname==='/admin'?'selected':''} onClick={()=>nav('/admin')}>Artikel</button><button className={loc.pathname==='/admin/motivasi'?'selected':''} onClick={()=>nav('/admin/motivasi')}>Motivasi</button></div>}
+
+function AdminMotivationPage(){
+  const {isAdmin,adminLoading}=useAuth();
+  const {items,loading,reload}=useMotivations();
+  const blank={id:null,emoji:'🌿',message:'',color:'green',sortOrder:0};
+  const [form,setForm]=useState(blank);
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState('');
+  if(adminLoading)return <Page><p className="subhead">Memeriksa akses...</p></Page>;
+  if(!isAdmin)return <Navigate to="/home" replace/>;
+  const colorLabel=c=>MOTIVATION_COLORS.find(([v])=>v===c)?.[1]??c;
+  const edit=m=>{setForm({id:m.id,emoji:m.emoji,message:m.message,color:m.color,sortOrder:m.sort_order});setMsg('')};
+  const reset=()=>{setForm(blank);setMsg('')};
+  const save=async e=>{
+    e.preventDefault();
+    if(!form.emoji.trim()||!form.message.trim()){setMsg('Emoji dan teks wajib diisi.');return}
+    setBusy(true);setMsg('');
+    try{
+      await saveMotivation(form);
+      setMsg(form.id?'Kata diperbarui.':'Kata ditambahkan.');
+      setForm(blank);
+      await reload();
+    }catch(err){setMsg(err.message)}
+    finally{setBusy(false)}
+  };
+  const remove=async m=>{
+    if(!window.confirm('Hapus kata motivasi ini?'))return;
+    setBusy(true);setMsg('');
+    try{
+      await deleteMotivation(m.id);
+      if(form.id===m.id)setForm(blank);
+      await reload();
+    }catch(err){setMsg(err.message)}
+    finally{setBusy(false)}
+  };
+  return <Page title="Kelola motivasi"><AdminTabs/>
+    <div className="admin-layout">
+      <section className="admin-list">
+        <button className="save-btn" onClick={reset}>+ Kata baru</button>
+        {loading?<p className="subhead">Memuat...</p>:items.map(m=><div className="admin-item" key={m.id}>
+          <div><b>{m.emoji} {m.message}</b><span>{colorLabel(m.color)} · urutan {m.sort_order}</span></div>
+          <div className="admin-item-actions">
+            <button className="plain-btn" onClick={()=>edit(m)}>Edit</button>
+            <button className="plain-btn" onClick={()=>remove(m)} aria-label="Hapus"><Trash2/></button>
+          </div>
+        </div>)}
+      </section>
+      <form className="admin-form" onSubmit={save}>
+        <h3>{form.id?'Edit kata':'Kata baru'}</h3>
+        <Field label="Emoji (ikon kartu)" value={form.emoji} onChange={v=>setForm({...form,emoji:v})}/>
+        <Field label="Teks motivasi" value={form.message} onChange={v=>setForm({...form,message:v})}/>
+        <div className="field"><label>Warna kartu</label><select value={form.color} onChange={e=>setForm({...form,color:e.target.value})}>{MOTIVATION_COLORS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></div>
+        <Field label="Urutan (angka kecil tampil lebih dulu)" type="number" value={form.sortOrder} onChange={v=>setForm({...form,sortOrder:v})}/>
+        <p className="subhead">Pratinjau:</p>
+        <div className="motivation-grid"><div className={'motivation-card '+form.color}><span>{form.emoji||'🌿'}</span><p>{form.message||'Teks motivasi akan tampil di sini.'}</p></div></div>
+        <div className="journal-actions"><button className="save-btn" disabled={busy}>{busy?'Menyimpan...':'Simpan'}</button>{form.id&&<button type="button" className="plain-btn" onClick={reset} disabled={busy}>Batal edit</button>}</div>
+        {msg&&<p className="admin-msg">{msg}</p>}
+      </form>
+    </div>
+    <Footer/>
+  </Page>;
+}
 
 function AdminArticlesPage(){
   const {isAdmin,adminLoading}=useAuth();
@@ -152,7 +295,7 @@ function AdminArticlesPage(){
     if(!window.confirm(`Hapus artikel "${a.title}"?`))return;
     try{await deleteArticle(a.id);if(form.id===a.id)reset();reload()}catch(err){setMsg(err.message)}
   };
-  return <Page title="Kelola artikel">
+  return <Page title="Kelola artikel"><AdminTabs/>
     <div className="admin-layout">
       <section className="admin-list">
         <button className="save-btn" onClick={reset}>+ Artikel baru</button>
@@ -182,4 +325,4 @@ function AdminArticlesPage(){
   </Page>;
 }
 
-createRoot(document.getElementById('root')).render(<BrowserRouter><AuthProvider><App/></AuthProvider></BrowserRouter>);
+createRoot(document.getElementById('root')).render(<BrowserRouter><AuthProvider><LogsProvider><App/></LogsProvider></AuthProvider></BrowserRouter>);
