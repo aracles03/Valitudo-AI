@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const detail = await res.text();
       console.error('Gemini error', res.status, detail);
-      return json({ error: `Gemini ${res.status}: ${detail.slice(0, 300)}` }, 502);
+      return json({ error: 'Asisten sedang tidak tersedia. Coba lagi sebentar.' }, 502);
     }
 
     const data = await res.json();
