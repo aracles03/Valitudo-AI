@@ -163,8 +163,61 @@ function NutritionPage(){
     <Footer/>
   </Page>;
 }
-function AIPage(){const [input,setInput]=useState('');const [messages,setMessages]=useState([]);const [typing,setTyping]=useState(false);const send=()=>{if(!input.trim()||typing)return;const q=input.trim();setInput('');setMessages(m=>[...m,{from:'user',text:q,id:Date.now()}]);setTyping(true);window.setTimeout(()=>{setMessages(m=>[...m,{from:'bot',text:'Aku akan membantu memberikan informasi kesehatan umum berdasarkan pertanyaanmu.',id:Date.now()+1}]);setTyping(false)},1250)};return <Page><div className="ipad-chat"><div className="ipad-frame"><div className="ipad-camera"/><div className="wa-topbar"><div className="chat-avatar"><img src={logo} alt="Valitudo"/></div><div><strong>Valitudo Assistant</strong><span>online</span></div><div className="wa-actions"><Search/><span>•••</span></div></div><div className="wa-chat-wall"><div className="chat-body">{messages.length===0&&!typing?<div className="chat-welcome"><div className="welcome-icon"><Sparkles/></div><h2>How can I help you today?</h2><p>Ask about nutrition, sleep, exercise, or healthy daily habits.</p></div>:<div className="chat-messages">{messages.map((m,i)=><div key={m.id} className={'chat-bubble '+m.from}>{m.text}<small>{i%2===0?'10:24':'10:25'} ✓✓</small></div>)}{typing&&<div className="typing-bubble"><i/><i/><i/></div>}</div>}</div><div className="chat-input"><button className="plus-btn">+</button><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Message"/><button onClick={send} aria-label="Kirim"><Send/></button></div><small className="chat-disclaimer">Valitudo provides general health information, not a medical diagnosis.</small></div></div></div><Footer/></Page>}
+function AIPage(){
+  const [input,setInput]=useState('');
+  const [messages,setMessages]=useState([]);
+  const [typing,setTyping]=useState(false);
+  const bottomRef=useRef(null);
+  const timeNow=()=>new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const readErr=async error=>{try{const j=await error.context.json();return j.error||error.message}catch{return error.message}};
 
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:'smooth'})},[messages,typing]);
+
+  const send=async()=>{
+    const q=input.trim();
+    if(!q||typing)return;
+    setInput('');
+    const userMsg={id:Date.now(),from:'user',text:q,time:timeNow()};
+    const next=[...messages,userMsg];
+    setMessages(next);
+    setTyping(true);
+    const history=next
+      .filter(m=>m.from==='user'||m.from==='bot')
+      .map(m=>({role:m.from==='user'?'user':'assistant',content:m.text}));
+    try{
+      const {data,error}=await supabase.functions.invoke('chat-agent',{body:{messages:history,today:todayStr()}});
+      if(error)throw new Error(await readErr(error));
+      if(data?.error)throw new Error(data.error);
+      setMessages(m=>[...m,{id:Date.now()+1,from:'bot',text:data.reply,time:timeNow()}]);
+    }catch(err){
+      console.error(err);
+      setMessages(m=>[...m,{id:Date.now()+1,from:'error',text:err.message||'Gagal terhubung ke asisten.',time:timeNow()}]);
+    }finally{
+      setTyping(false);
+    }
+  };
+
+  return <Page><div className="ipad-chat"><div className="ipad-frame"><div className="ipad-camera"/>
+    <div className="wa-topbar"><div className="chat-avatar"><img src={logo} alt="Valitudo"/></div><div><strong>Valitudo Assistant</strong><span>online</span></div><div className="wa-actions"><Search/><span>•••</span></div></div>
+    <div className="wa-chat-wall"><div className="chat-body">
+      {messages.length===0&&!typing
+        ?<div className="chat-welcome"><div className="welcome-icon"><Sparkles/></div><h2>How can I help you today?</h2><p>Ask about nutrition, sleep, exercise, or healthy daily habits.</p></div>
+        :<div className="chat-messages">
+          {messages.map(m=>m.from==='error'
+            ?<div key={m.id} className="chat-bubble bot" style={{color:'#b42318'}}>{m.text}</div>
+            :<div key={m.id} className={'chat-bubble '+m.from} style={{whiteSpace:'pre-wrap'}}>{m.text}<small>{m.time}</small></div>)}
+          {typing&&<div className="typing-bubble"><i/><i/><i/></div>}
+          <div ref={bottomRef}/>
+        </div>}
+    </div></div>
+    <div className="chat-input">
+      <button className="plus-btn" type="button" onClick={()=>setMessages([])} title="Percakapan baru" aria-label="Percakapan baru">+</button>
+      <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Message"/>
+      <button onClick={send} disabled={typing} aria-label="Kirim"><Send/></button>
+    </div>
+    <small className="chat-disclaimer">Valitudo provides general health information, not a medical diagnosis.</small>
+  </div></div><Footer/></Page>;
+}
 function Auth({type}){
   const nav=useNavigate();
   const login=type==='login';

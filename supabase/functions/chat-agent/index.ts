@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
-const MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.8-flash';
+const GEMINI_KEY = (Deno.env.get('GEMINI_API_KEY') ?? '').trim();
+const MODEL = (Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.5-flash').trim();
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY') ?? '';
 
@@ -31,7 +31,6 @@ Penggunaan alat:
 - Gunakan log_water, log_meal, atau log_mood hanya jika pengguna jelas meminta untuk mencatat. Setelah mencatat, konfirmasi singkat apa yang tersimpan.
 - Jika kalori makanan tidak disebutkan, berikan perkiraan dan katakan bahwa itu perkiraan.`;
 
-// format function declaration Gemini
 const TOOLS = [
   {
     name: 'get_today_summary',
@@ -153,6 +152,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Metode tidak didukung.' }, 405);
 
+  if (!GEMINI_KEY) return json({ error: 'GEMINI_API_KEY belum di-set di Supabase Secrets.' }, 500);
+
   const authHeader = req.headers.get('Authorization') ?? '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   if (!token) return json({ error: 'Silakan login terlebih dahulu.' }, 401);
@@ -198,8 +199,9 @@ Deno.serve(async (req) => {
     );
 
     if (!res.ok) {
-      console.error('Gemini error', res.status, await res.text());
-      return json({ error: 'Asisten sedang tidak tersedia. Coba lagi sebentar.' }, 502);
+      const detail = await res.text();
+      console.error('Gemini error', res.status, detail);
+      return json({ error: `Gemini ${res.status}: ${detail.slice(0, 300)}` }, 502);
     }
 
     const data = await res.json();
